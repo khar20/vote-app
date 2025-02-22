@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Votación Segura</title>
+</head>
+
+<body>
+    <h1>Vote por su candidato</h1>
+    <button data-candidato="A">Votar por A</button>
+    <button data-candidato="B">Votar por B</button>
+    <button data-candidato="C">Votar por C</button>
+    <button data-candidato="D">Votar por D</button>
+    <script type="module">
+        // Importación del módulo paillier-bigint desde un CDN
+        import * as paillierBigint from "https://unpkg.com/paillier-bigint@3.4.3/dist/bundle.esm.min.js";
+
+        // Función asíncrona para obtener la clave pública desde el servidor
+        async function obtenerClavePublica() {
+            try {
+                const respuesta = await fetch("http://localhost:8080/public-key");
+                if (!respuesta.ok) {
+                    throw new Error("No se pudo obtener la clave pública");
+                }
+                const { N, G } = await respuesta.json();
+                return new paillierBigint.PublicKey(BigInt(N), BigInt(G));
+            } catch (error) {
+                console.error("Error al obtener la clave pública:", error);
+                return null;
+            }
+        }
+
+        // Función asíncrona para encriptar el voto de un candidato
+        async function encriptarVoto(candidato) {
+            const clavePublica = await obtenerClavePublica();
+            if (!clavePublica) {
+                alert("No se pudo recuperar la clave pública. Intente de nuevo.");
+                return;
+            }
+
+            const candidatos = ["A", "B", "C", "D"];
+            const vectorOneHot = candidatos.map(c => (c === candidato ? 1 : 0));
+
+            const esVectorOneHotValido =
+                vectorOneHot.length === candidatos.length &&  // Mismo tamaño que la lista de candidatos
+                vectorOneHot.every(x => x === 0 || x === 1) && // Solo contiene 0s y 1s
+                vectorOneHot.reduce((suma, x) => suma + x, 0) === 1; // Solo un 1 en el array
+
+            if (!esVectorOneHotValido) {
+                throw new Error("El vector generado no es un vector one-hot válido.");
+            }
+
+            console.log("Vector one-hot:", vectorOneHot);
+
+            const timestamp = new Date().toISOString();
+            const vectorEncriptado = vectorOneHot.map(valor => clavePublica.encrypt(BigInt(valor)).toString());
+
+            console.log("Vector encriptado:", vectorEncriptado);
+
+            fetch("http://localhost:8080/vote", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ voto: vectorEncriptado, timestamp })
+            })
+                .then(res => res.json())
+                .then(datos => {
+                    alert("¡Voto enviado con éxito!");
+                })
+                .catch(error => {
+                    console.error("Error al enviar el voto:", error);
+                });
+        }
+
+        // Asignar eventos de clic a los botones de votación para cada candidato
+        document.querySelector('button[data-candidato="A"]').addEventListener('click', () => encriptarVoto('A'));
+        document.querySelector('button[data-candidato="B"]').addEventListener('click', () => encriptarVoto('B'));
+        document.querySelector('button[data-candidato="C"]').addEventListener('click', () => encriptarVoto('C'));
+        document.querySelector('button[data-candidato="D"]').addEventListener('click', () => encriptarVoto('D'));
+    </script>
+
+</body>
+
+</html>
