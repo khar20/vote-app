@@ -62,7 +62,7 @@
             fetch("http://localhost:8080/vote", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ voto: vectorEncriptado, timestamp })
+                body: JSON.stringify({ vote: vectorEncriptado, timestamp })
             })
                 .then(res => res.json())
                 .then(datos => {
